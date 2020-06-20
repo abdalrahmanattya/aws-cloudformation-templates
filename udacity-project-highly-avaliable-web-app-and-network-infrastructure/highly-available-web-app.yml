@@ -1,0 +1,163 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: --
+Parameters: 
+  VPCID:
+    Description: vpc-id
+    Type: AWS::EC2::VPC::Id 
+  ImageID:
+    Type: AWS::EC2::Image::Id
+    Default: ami-0701e7be9b2a77600
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet::Id
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet::Id
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet::Id
+Resources:
+  IamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument: 
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+              - ec2.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Policies:
+        - 
+         PolicyName: "root"
+         PolicyDocument:
+           Version: "2012-10-17"
+           Statement:
+              - 
+                Effect: "Allow"
+                Action: "s3:GetObject"
+                Resource: "arn:aws:s3:::udacity-demo-1/*"
+  IamInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref IamRole
+  SecurityGroupEC2:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroupEC2
+      GroupName: MyUdacity-SG-EC2
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        SourceSecurityGroupId: !Ref SecurityGroupLoadBalancer
+  SecurityGroupLoadBalancer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SecurityGroupLoadBalancer
+      GroupName: MyUdacity-SG-ALB
+      VpcId: !Ref VPCID
+      SecurityGroupIngress:
+      - IpProtocol: tcp
+        FromPort: 80
+        ToPort: 80
+        CidrIp: 0.0.0.0/0
+  ApplicationLoadBalancer:
+    Type: "AWS::ElasticLoadBalancingV2::LoadBalancer"
+    Properties:
+      IpAddressType: ipv4
+      Name: MyUdacityALB
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref SecurityGroupLoadBalancer
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Type: application
+  LoadBalancerListnerRule:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties: 
+      Actions: 
+        - Type: forward
+          TargetGroupArn: !Ref LoadBalancerTargetGroup
+      Conditions:
+        - Field: http-request-method
+          HttpRequestMethodConfig:
+            Values:
+              - GET_OR_HEAD
+      ListenerArn: !Ref LoadBalancerListner
+      Priority: 1
+  LoadBalancerListner:
+    Type: "AWS::ElasticLoadBalancingV2::Listener"
+    Properties:
+      DefaultActions: 
+        - TargetGroupArn: !Ref LoadBalancerTargetGroup
+          Type: forward
+      LoadBalancerArn: !Ref ApplicationLoadBalancer
+      Port: 80 #required
+      Protocol: HTTP #required
+  LoadBalancerTargetGroup:
+    Type: "AWS::ElasticLoadBalancingV2::TargetGroup"
+    Properties:
+      HealthCheckProtocol: HTTP
+      Name: MyUdacityTG
+      Port: 80
+      Protocol: HTTP
+      TargetType: instance
+      VpcId: !Ref VPCID
+  AutoScalingGroup:
+    Type: "AWS::AutoScaling::AutoScalingGroup"
+    Properties:
+      AutoScalingGroupName: MyUdacityASG
+      DesiredCapacity: 4
+      HealthCheckGracePeriod: 300
+      HealthCheckType: ELB
+      LaunchConfigurationName: !Ref launchConfiguration
+      MaxSize: 6 #required
+      MinSize: 4 #required
+      TargetGroupARNs:
+        - !Ref LoadBalancerTargetGroup
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+  launchConfiguration:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Properties:
+      LaunchConfigurationName: MyUdacityLG
+      AssociatePublicIpAddress: false
+      IamInstanceProfile: !Ref IamInstanceProfile
+      ImageId: !Ref ImageID
+      InstanceType: t3.medium
+      SecurityGroups:
+        - !Ref SecurityGroupEC2
+      BlockDeviceMappings:
+        - DeviceName: /dev/sda1
+          Ebs: 
+            VolumeSize: 10
+            VolumeType: "io1"
+            Iops: 200
+      UserData:
+        Fn::Base64: |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip awscli -y
+          apt-get install apache2 -y
+          systemctl start apache2.service
+          cd /var/www/html
+          aws s3 cp s3://udacity-demo-1/udacity.zip .
+          unzip -o udacity.zip
+          
+Outputs:
+ LoadBalancerDNS:
+   Description: Load balancer DNS name
+   Value: !Join
+            - ''
+            - - 'http://'
+              - !GetAtt ApplicationLoadBalancer.DNSName
+
+   

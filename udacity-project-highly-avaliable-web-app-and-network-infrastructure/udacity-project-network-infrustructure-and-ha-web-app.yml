@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: ---
+Resources: 
+  NetworkInfrastructure: 
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: "https://abdalrahman-attya-aws-cloudformation-templates.s3-eu-west-1.amazonaws.com/udacity-project-network-infrustructure-and-highly-available-web-app/network-infrustructure.yml"
+  WebApp: 
+    Type: AWS::CloudFormation::Stack
+    Properties: 
+      TemplateURL: "https://abdalrahman-attya-aws-cloudformation-templates.s3-eu-west-1.amazonaws.com/udacity-project-network-infrustructure-and-highly-available-web-app/highly-available-web-app.yml"
+      Parameters: 
+        VPCID: !GetAtt NetworkInfrastructure.Outputs.VPCID
+        PublicSubnet1: !GetAtt NetworkInfrastructure.Outputs.PublicSubnet1 
+        PublicSubnet2: !GetAtt NetworkInfrastructure.Outputs.PublicSubnet2 
+        PrivateSubnet1: !GetAtt NetworkInfrastructure.Outputs.PrivateSubnet1 
+        PrivateSubnet2: !GetAtt NetworkInfrastructure.Outputs.PrivateSubnet2 
+    DependsOn: NetworkInfrastructure
+Outputs:
+  URL:
+    Description: URL
+    Value: !GetAtt WebApp.Outputs.LoadBalancerDNS
