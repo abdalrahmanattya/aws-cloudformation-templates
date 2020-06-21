@@ -1,2 +1,3 @@
-# aws-cloudformation-two-tier-web-app
-2-tier web application. consist of EC2, ASG and ELB. Infrastructure as code using CloudFormation in Yaml
+# AWS CLoudFormation Templates
+It contains CloudFormation templates that has been written in YAML. The templates represents several projects that I have been working on through out my journey becoming a Cloud DevOps Engineer.
+
